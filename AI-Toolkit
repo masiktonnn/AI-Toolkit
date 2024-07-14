@@ -1,0 +1,65 @@
+import pandas as pd
+from flask import Flask, request, jsonify
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+import joblib
+
+app = Flask(__name__)
+
+# Initialize model variable
+model = None
+
+@app.route('/')
+def home():
+    return "Welcome to the AI Toolkit API!"
+
+@app.route('/train', methods=['POST'])
+def train():
+    global model
+
+    # Expecting a CSV file in the request
+    if 'file' not in request.files:
+        return "No file part", 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return "No selected file", 400
+
+    # Read dataset
+    df = pd.read_csv(file)
+    X = df.iloc[:, :-1]  # Features
+    y = df.iloc[:, -1]   # Target
+
+    # Split the dataset
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Train the model
+    model = LogisticRegression()
+    model.fit(X_train, y_train)
+
+    # Save the model
+    joblib.dump(model, 'model.pkl')
+
+    return "Model trained successfully", 200
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    global model
+    if model is None:
+        return "Model not trained yet", 400
+
+    # Expecting JSON data for prediction
+    data = request.get_json()
+    if not data:
+        return "No input data provided", 400
+
+    # Convert data to DataFrame
+    input_data = pd.DataFrame(data, index=[0])
+    
+    # Make predictions
+    prediction = model.predict(input_data)
+
+    return jsonify({'prediction': prediction[0]}), 200
+
+if __name__ == "__main__":
+    app.run(debug=True)
